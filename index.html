@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>One File React App</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Trophy, 
+  Users, 
+  Settings, 
+  Check, 
+  X, 
+  ChevronRight, 
+  HelpCircle,
+  Play,
+  RotateCcw,
+  Edit3,
+  DollarSign,
+  Lock,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+
+// --- Types ---
+type Question = {
+  id: string;
+  value: number;
+  question: string;
+  answer: string;
+  isDailyDouble?: boolean;
+};
+
+type Category = {
+  id: string;
+  title: string;
+  questions: Question[];
+};
+
+type FinalJeopardyQuestion = {
+  category: string;
+  question: string;
+  answer: string;
+};
+
+type GameData = {
+  categories: Category[];
+  finalJeopardy?: FinalJeopardyQuestion;
+};
+
+type Team = {
+  id: string;
+  name: string;
+  score: number;
+};
+
+type GamePhase = 'setup' | 'board' | 'question' | 'final' | 'end';
+type FinalPhaseStep = 'wager' | 'question' | 'scoring';
+
+// --- Default Data ---
+const DEFAULT_GAME_DATA: GameData = {
+  categories: [
+    {
+      id: 'c1',
+      title: 'WEB DEV',
+      questions: [
+        { id: 'q1-100', value: 100, question: 'This library is used for building user interfaces and was developed by Facebook.', answer: 'What is React?' },
+        { id: 'q1-200', value: 200, question: 'This CSS framework uses utility classes like "flex" and "pt-4".', answer: 'What is Tailwind CSS?' },
+        { id: 'q1-300', value: 300, question: 'The "DOM" stands for this.', answer: 'What is Document Object Model?' },
+        { id: 'q1-400', value: 400, question: 'This hook is used to perform side effects in functional components.', answer: 'What is useEffect?' },
+        { id: 'q1-500', value: 500, question: 'This tool bundles JavaScript files for usage in a browser.', answer: 'What is Webpack (or Vite/Parcel)?' },
+      ]
+    },
+    {
+      id: 'c2',
+      title: 'SCIENCE',
+      questions: [
+        { id: 'q2-100', value: 100, question: 'H2O is the chemical formula for this.', answer: 'What is Water?' },
+        { id: 'q2-200', value: 200, question: 'The powerhouse of the cell.', answer: 'What is the Mitochondria?' },
+        { id: 'q2-300', value: 300, question: 'This planet is known as the Red Planet.', answer: 'What is Mars?' },
+        { id: 'q2-400', value: 400, question: 'The speed of light is approximately this many kilometers per second.', answer: 'What is 300,000 km/s?' },
+        { id: 'q2-500', value: 500, question: 'This element has the atomic number 1.', answer: 'What is Hydrogen?' },
+      ]
+    },
+    {
+      id: 'c3',
+      title: 'MOVIES',
+      questions: [
+        { id: 'q3-100', value: 100, question: 'This movie features a character named Luke Skywalker.', answer: 'What is Star Wars?' },
+        { id: 'q3-200', value: 200, question: 'He played Jack Dawson in Titanic.', answer: 'Who is Leonardo DiCaprio?' },
+        { id: 'q3-300', value: 300, question: 'The first rule of Fight Club.', answer: 'What is "You do not talk about Fight Club"?' },
+        { id: 'q3-400', value: 400, question: 'This animated movie features a robot named WALL-E.', answer: 'What is WALL-E?' },
+        { id: 'q3-500', value: 500, question: 'The highest grossing movie of all time (as of 2024).', answer: 'What is Avatar?' },
+      ]
+    },
+    {
+      id: 'c4',
+      title: 'HISTORY',
+      questions: [
+        { id: 'q4-100', value: 100, question: 'The first President of the United States.', answer: 'Who is George Washington?' },
+        { id: 'q4-200', value: 200, question: 'The year the Titanic sank.', answer: 'What is 1912?' },
+        { id: 'q4-300', value: 300, question: 'This wall fell in 1989.', answer: 'What is the Berlin Wall?' },
+        { id: 'q4-400', value: 400, question: 'The ancient civilization that built the Pyramids.', answer: 'Who are the Egyptians?' },
+        { id: 'q4-500', value: 500, question: 'The declaration of independence was signed in this year.', answer: 'What is 1776?' },
+      ]
+    },
+     {
+      id: 'c5',
+      title: 'GEOGRAPHY',
+      questions: [
+        { id: 'q5-100', value: 100, question: 'The capital of France.', answer: 'What is Paris?' },
+        { id: 'q5-200', value: 200, question: 'The largest ocean on Earth.', answer: 'What is the Pacific Ocean?' },
+        { id: 'q5-300', value: 300, question: 'This continent is also a country.', answer: 'What is Australia?' },
+        { id: 'q5-400', value: 400, question: 'The longest river in the world.', answer: 'What is the Nile (or Amazon)?' },
+        { id: 'q5-500', value: 500, question: 'The country known as the Land of the Rising Sun.', answer: 'What is Japan?' },
+      ]
+    },
+  ],
+  finalJeopardy: {
+    category: "FAMOUS AUTHORS",
+    question: "This American author wrote 'The Old Man and the Sea' and 'A Farewell to Arms'.",
+    answer: "Who is Ernest Hemingway?"
+  }
+};
+
+// --- Main Component ---
+export default function App() {
+  const [phase, setPhase] = useState<GamePhase>('setup');
+  const [teams, setTeams] = useState<Team[]>([
+    { id: 't1', name: 'Team 1', score: 0 },
+    { id: 't2', name: 'Team 2', score: 0 }
+  ]);
+  const [gameData, setGameData] = useState<GameData>(DEFAULT_GAME_DATA);
+  const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set());
+  const [currentQuestion, setCurrentQuestion] = useState<{ catIndex: number; qIndex: number } | null>(null);
+  const [isAnswerRevealed, setIsAnswerRevealed] = useState(false);
+  
+  // Setup State
+  const [dataInput, setDataInput] = useState(JSON.stringify(DEFAULT_GAME_DATA, null, 2));
+  const [showJsonEditor, setShowJsonEditor] = useState(false);
+  const [enableFinalJeopardy, setEnableFinalJeopardy] = useState(true);
+
+  // Final Jeopardy State
+  const [finalPhaseStep, setFinalPhaseStep] = useState<FinalPhaseStep>('wager');
+  const [finalWagers, setFinalWagers] = useState<Record<string, number>>({});
+  const [finalResults, setFinalResults] = useState<Record<string, 'correct' | 'incorrect' | null>>({});
+
+  // --- Actions ---
+
+  const addTeam = () => {
+    const newId = `t${teams.length + 1}`;
+    setTeams([...teams, { id: newId, name: `Team ${teams.length + 1}`, score: 0 }]);
+  };
+
+  const removeTeam = (id: string) => {
+    if (teams.length > 1) {
+      setTeams(teams.filter(t => t.id !== id));
+    }
+  };
+
+  const updateTeamName = (id: string, name: string) => {
+    setTeams(teams.map(t => t.id === id ? { ...t, name } : t));
+  };
+
+  const startGame = () => {
+    try {
+      const parsed = JSON.parse(dataInput);
+      setGameData(parsed);
+      setPhase('board');
+      // Initialize final wagers
+      const initialWagers: Record<string, number> = {};
+      const initialResults: Record<string, any> = {};
+      teams.forEach(t => {
+        initialWagers[t.id] = 0;
+        initialResults[t.id] = null;
+      });
+      setFinalWagers(initialWagers);
+      setFinalResults(initialResults);
+    } catch (e) {
+      alert("Invalid JSON data. Please check your syntax.");
+    }
+  };
+
+  const handleQuestionClick = (catIndex: number, qIndex: number) => {
+    const qId = gameData.categories[catIndex].questions[qIndex].id;
+    if (!answeredQuestions.has(qId)) {
+      setCurrentQuestion({ catIndex, qIndex });
+      setPhase('question');
+      setIsAnswerRevealed(false);
+    }
+  };
+
+  const handleAwardPoints = (teamId: string | null) => {
+    if (currentQuestion) {
+      const { catIndex, qIndex } = currentQuestion;
+      const question = gameData.categories[catIndex].questions[qIndex];
+      
+      if (teamId) {
+        setTeams(teams.map(t => t.id === teamId ? { ...t, score: t.score + question.value } : t));
+      }
+      // If teamId is null, nobody got points, but question is still marked done.
+
+      const newAnswered = new Set(answeredQuestions);
+      newAnswered.add(question.id);
+      setAnsweredQuestions(newAnswered);
+      
+      // Check for end game
+      let totalQuestions = 0;
+      gameData.categories.forEach(c => totalQuestions += c.questions.length);
+      
+      if (newAnswered.size === totalQuestions) {
+        if (enableFinalJeopardy && gameData.finalJeopardy) {
+           setPhase('final');
+           setFinalPhaseStep('wager');
+        } else {
+           setPhase('end');
+        }
+      } else {
+        setPhase('board');
+      }
+      setCurrentQuestion(null);
+    }
+  };
+
+  const handleFinalWagerChange = (teamId: string, value: string) => {
+    const numVal = parseInt(value) || 0;
+    setFinalWagers(prev => ({ ...prev, [teamId]: numVal }));
+  };
+
+  const submitFinalWagers = () => {
+    setFinalPhaseStep('question');
+  };
+
+  const revealFinalAnswer = () => {
+    setFinalPhaseStep('scoring');
+  };
+
+  const handleFinalScore = (teamId: string, correct: boolean) => {
+     // Toggle result
+     setFinalResults(prev => {
+        const current = prev[teamId];
+        // If clicking same button, toggle off? Or just strict set. Let's strictly set.
+        // Actually toggling might be confusing. Let's just set.
+        return { ...prev, [teamId]: correct ? 'correct' : 'incorrect' };
+     });
+  };
+
+  const finishFinalJeopardy = () => {
+      // Calculate final scores
+      const newTeams = teams.map(t => {
+          const wager = finalWagers[t.id] || 0;
+          const result = finalResults[t.id];
+          let newScore = t.score;
+          if (result === 'correct') newScore += wager;
+          if (result === 'incorrect') newScore -= wager;
+          return { ...t, score: newScore };
+      });
+      setTeams(newTeams);
+      setPhase('end');
+  };
+
+  const resetGame = () => {
+    setPhase('setup');
+    setAnsweredQuestions(new Set());
+    setTeams(teams.map(t => ({...t, score: 0})));
+    setCurrentQuestion(null);
+    setFinalPhaseStep('wager');
+  };
+
+  // --- Renders ---
+
+  const renderSetup = () => (
+    <div className="min-h-screen bg-slate-900 text-white p-8 flex flex-col items-center overflow-y-auto">
+      <div className="max-w-4xl w-full space-y-8">
+        <div className="text-center space-y-2">
+          <h1 className="text-5xl font-black text-yellow-400 tracking-tighter uppercase drop-shadow-lg">Jeopardy!</h1>
+          <p className="text-slate-400 text-lg">Setup your game configuration</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* Teams Config */}
+          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Users className="text-blue-400" /> Teams
+              </h2>
+              <button 
+                onClick={addTeam}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-semibold transition-colors"
+              >
+                + Add Team
+              </button>
+            </div>
+            <div className="space-y-3">
+              {teams.map((team, idx) => (
+                <div key={team.id} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={team.name}
+                    onChange={(e) => updateTeamName(team.id, e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    placeholder={`Team ${idx + 1}`}
+                  />
+                  <button 
+                    onClick={() => removeTeam(team.id)}
+                    className="text-red-400 hover:text-red-300 px-2"
+                    disabled={teams.length <= 1}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Data Config Toggle */}
+          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Settings className="text-purple-400" /> Options
+              </h2>
+            </div>
+            
+            <div className="space-y-4 flex-1">
+                 <label className="flex items-center space-x-3 cursor-pointer p-3 bg-slate-900 rounded border border-slate-700 hover:border-blue-500 transition-colors">
+                    <input 
+                        type="checkbox" 
+                        checked={enableFinalJeopardy} 
+                        onChange={(e) => setEnableFinalJeopardy(e.target.checked)}
+                        className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="font-bold">Enable Final Jeopardy</span>
+                 </label>
+
+                <div className="flex justify-between items-center">
+                    <span className="text-slate-400 text-sm font-bold uppercase tracking-wider">Game Data JSON</span>
+                    <button 
+                        onClick={() => setShowJsonEditor(!showJsonEditor)}
+                        className="text-xs uppercase tracking-wider font-bold text-blue-400 hover:text-white flex items-center gap-1"
+                    >
+                        <Edit3 size={14} /> {showJsonEditor ? 'Hide' : 'Edit'}
+                    </button>
+                </div>
+
+                {showJsonEditor ? (
+                <textarea
+                    value={dataInput}
+                    onChange={(e) => setDataInput(e.target.value)}
+                    className="w-full h-48 bg-slate-900 text-xs font-mono text-green-400 p-4 rounded border border-slate-700 focus:border-purple-500 outline-none resize-none"
+                />
+                ) : (
+                <div className="text-slate-500 text-sm text-center py-4">
+                    <p>Loaded {JSON.parse(dataInput).categories.length} Categories</p>
+                    <p className="text-xs mt-1">Check "Enable Final Jeopardy" above to include final round.</p>
+                </div>
+                )}
+            </div>
+          </div>
+        </div>
+
+        <button 
+          onClick={startGame}
+          className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl font-black text-2xl uppercase tracking-widest shadow-lg transform transition active:scale-95 flex items-center justify-center gap-4"
+        >
+          <Play fill="currentColor" /> Start Game
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderBoard = () => (
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col">
+      {/* Header / Scoreboard */}
+      <header className="bg-slate-800 border-b border-slate-700 p-4 shadow-lg z-10 sticky top-0">
+        <div className="max-w-7xl mx-auto flex justify-between items-center overflow-x-auto gap-4">
+          <div className="font-black text-yellow-400 text-xl hidden md:block">JEOPARDY!</div>
+          <div className="flex gap-4 md:gap-8 flex-1 justify-center md:justify-end">
+            {teams.map(team => (
+              <div key={team.id} className="text-center min-w-[80px]">
+                <div className="text-xs text-slate-400 uppercase font-bold tracking-wider truncate max-w-[120px]">{team.name}</div>
+                <div className={`text-2xl font-mono font-bold ${team.score < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                  ${team.score}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      {/* Grid */}
+      <div className="flex-1 p-2 md:p-6 overflow-auto flex items-center justify-center">
+        <div 
+            className="grid gap-2 w-full max-w-7xl h-full"
+            style={{ 
+                gridTemplateColumns: `repeat(${gameData.categories.length}, minmax(0, 1fr))`,
+            }}
+        >
+          {/* Categories Headers */}
+          {gameData.categories.map((cat) => (
+            <div key={cat.id} className="bg-blue-900 flex items-center justify-center p-2 text-center border-b-4 border-blue-950 shadow-md">
+              <h3 className="font-bold text-xs md:text-lg uppercase tracking-tight text-white drop-shadow-md break-words w-full">
+                {cat.title}
+              </h3>
+            </div>
+          ))}
+
+          {/* Questions Grid */}
+          {Array.from({ length: 5 }).map((_, rowIndex) => (
+             <React.Fragment key={rowIndex}>
+                {gameData.categories.map((cat, catIndex) => {
+                    const question = cat.questions[rowIndex];
+                    const isAnswered = question && answeredQuestions.has(question.id);
+                    
+                    return (
+                        <div key={`${cat.id}-${rowIndex}`} className="relative aspect-[4/3] md:aspect-video">
+                            {question ? (
+                                <button
+                                    disabled={isAnswered}
+                                    onClick={() => handleQuestionClick(catIndex, rowIndex)}
+                                    className={`w-full h-full flex items-center justify-center text-xl md:text-4xl font-black transition-all duration-300 transform
+                                        ${isAnswered 
+                                            ? 'bg-slate-800 text-slate-700 cursor-default' 
+                                            : 'bg-blue-700 text-yellow-400 hover:bg-blue-600 hover:scale-105 hover:shadow-xl hover:z-10 shadow-lg border-2 border-blue-800'
+                                        }`}
+                                >
+                                    {isAnswered ? '' : `$${question.value}`}
+                                </button>
+                            ) : (
+                                <div className="bg-slate-800 w-full h-full"></div>
+                            )}
+                        </div>
+                    );
+                })}
+             </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderQuestion = () => {
+    if (!currentQuestion) return null;
+    const { catIndex, qIndex } = currentQuestion;
+    const question = gameData.categories[catIndex].questions[qIndex];
+    const category = gameData.categories[catIndex];
+
+    return (
+      <div className="fixed inset-0 bg-blue-900 z-50 flex flex-col items-center justify-center p-6 animate-in fade-in duration-300">
+        <div className="absolute top-6 left-6 text-blue-300 font-bold tracking-widest uppercase opacity-50">
+           {category.title} // ${question.value}
+        </div>
+        
+        <div className="max-w-4xl w-full text-center space-y-12">
+            <div className="space-y-6">
+                <h2 className="text-3xl md:text-6xl font-serif font-bold text-white leading-tight drop-shadow-xl uppercase">
+                    {question.question}
+                </h2>
+                
+                {isAnswerRevealed && (
+                    <div className="animate-in slide-in-from-bottom-8 duration-500">
+                        <div className="text-yellow-400 text-xl md:text-3xl font-bold mt-8 italic">
+                            {question.answer}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex flex-col items-center gap-6 mt-12">
+                {!isAnswerRevealed ? (
+                    <button 
+                        onClick={() => setIsAnswerRevealed(true)}
+                        className="bg-yellow-500 hover:bg-yellow-400 text-blue-900 px-8 py-3 rounded-full font-bold text-xl transition-transform hover:scale-105 shadow-lg flex items-center gap-2"
+                    >
+                        Reveal Answer <HelpCircle size={24} />
+                    </button>
+                ) : (
+                    <div className="space-y-4 w-full">
+                        <p className="text-blue-300 uppercase tracking-widest text-sm font-bold">Award Points To</p>
+                        <div className="flex flex-wrap justify-center gap-4">
+                             {teams.map(team => (
+                                <button
+                                    key={team.id}
+                                    onClick={() => handleAwardPoints(team.id)}
+                                    className="bg-green-600 hover:bg-green-500 text-white px-6 py-4 rounded-xl font-bold text-lg min-w-[120px] transition-transform hover:scale-105 shadow-lg"
+                                >
+                                    {team.name}
+                                </button>
+                             ))}
+                             <button
+                                onClick={() => handleAwardPoints(null)}
+                                className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-6 py-4 rounded-xl font-bold text-lg min-w-[120px] transition-transform hover:scale-105 shadow-lg"
+                             >
+                                No One
+                             </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderFinalJeopardy = () => {
+    if (!gameData.finalJeopardy) return null;
+
+    return (
+        <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center p-8 animate-in fade-in">
+             <div className="w-full max-w-4xl space-y-8 flex-1 flex flex-col justify-center">
+                <div className="text-center space-y-2">
+                     <h1 className="text-4xl font-black text-yellow-400 tracking-widest uppercase">Final Jeopardy</h1>
+                     <h2 className="text-2xl font-bold text-blue-300 uppercase tracking-widest border-b border-blue-500 pb-2 inline-block">
+                        {gameData.finalJeopardy.category}
+                     </h2>
+                </div>
+
+                {/* Step 1: Wagers */}
+                {finalPhaseStep === 'wager' && (
+                    <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 space-y-6 shadow-2xl animate-in slide-in-from-bottom-10">
+                        <p className="text-center text-slate-400">Enter wagers for each team. <br/> <span className="text-xs opacity-75">Only teams with positive scores typically bet, but we'll let anyone try!</span></p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {teams.map(team => (
+                                <div key={team.id} className="bg-slate-900 p-4 rounded flex items-center justify-between border border-slate-700">
+                                    <div>
+                                        <div className="font-bold text-white">{team.name}</div>
+                                        <div className={`text-sm ${team.score < 0 ? 'text-red-400' : 'text-green-400'}`}>Current: ${team.score}</div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <DollarSign size={16} className="text-yellow-500" />
+                                        <input 
+                                            type="number" 
+                                            value={finalWagers[team.id]}
+                                            onChange={(e) => handleFinalWagerChange(team.id, e.target.value)}
+                                            className="bg-slate-800 text-white font-mono text-xl w-32 p-2 rounded focus:ring-2 focus:ring-yellow-500 outline-none text-right"
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button 
+                            onClick={submitFinalWagers}
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-xl font-bold text-xl uppercase tracking-wider flex items-center justify-center gap-2"
+                        >
+                            <Lock size={20} /> Lock In Wagers & Reveal Question
+                        </button>
+                    </div>
+                )}
+
+                {/* Step 2 & 3: Question & Scoring */}
+                {(finalPhaseStep === 'question' || finalPhaseStep === 'scoring') && (
+                    <div className="space-y-8 text-center animate-in slide-in-from-bottom-10">
+                        <div className="bg-blue-800 p-8 md:p-12 rounded-xl shadow-2xl border-4 border-blue-900">
+                            <h3 className="text-2xl md:text-5xl font-serif font-bold text-white leading-tight uppercase drop-shadow-md">
+                                {gameData.finalJeopardy.question}
+                            </h3>
+                        </div>
+
+                        {finalPhaseStep === 'scoring' && (
+                            <div className="bg-yellow-500 text-blue-900 p-6 rounded-xl font-bold text-xl md:text-3xl animate-in fade-in zoom-in duration-300">
+                                {gameData.finalJeopardy.answer}
+                            </div>
+                        )}
+
+                        {finalPhaseStep === 'question' ? (
+                            <button 
+                                onClick={revealFinalAnswer}
+                                className="bg-yellow-500 hover:bg-yellow-400 text-blue-900 px-8 py-3 rounded-full font-bold text-xl transition-transform hover:scale-105 shadow-lg mx-auto flex items-center gap-2"
+                            >
+                                <Eye size={24} /> Reveal Answer
+                            </button>
+                        ) : (
+                             <div className="space-y-6 bg-slate-800 p-6 rounded-xl border border-slate-700">
+                                <p className="text-slate-400 uppercase tracking-widest font-bold text-sm">Score Final Results</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {teams.map(team => (
+                                        <div key={team.id} className="bg-slate-900 p-4 rounded flex flex-col gap-3 border border-slate-700">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-bold">{team.name}</span>
+                                                <span className="font-mono text-yellow-400 text-sm">Wager: ${finalWagers[team.id]}</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => handleFinalScore(team.id, true)}
+                                                    className={`flex-1 py-2 rounded font-bold transition-colors ${finalResults[team.id] === 'correct' ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+                                                >
+                                                    <Check size={16} className="mx-auto" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleFinalScore(team.id, false)}
+                                                    className={`flex-1 py-2 rounded font-bold transition-colors ${finalResults[team.id] === 'incorrect' ? 'bg-red-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}
+                                                >
+                                                    <X size={16} className="mx-auto" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button 
+                                    onClick={finishFinalJeopardy}
+                                    className="w-full bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold text-xl uppercase tracking-wider mt-4"
+                                >
+                                    Finish Game
+                                </button>
+                             </div>
+                        )}
+                    </div>
+                )}
+             </div>
+        </div>
+    );
+  };
+
+  const renderWinner = () => {
+    // Sort teams by score
+    const sortedTeams = [...teams].sort((a, b) => b.score - a.score);
+    const winner = sortedTeams[0];
+
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-8 animate-in zoom-in duration-500">
+        <div className="max-w-2xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl text-center space-y-8 border border-slate-700">
+          <Trophy className="w-24 h-24 text-yellow-400 mx-auto animate-bounce" />
+          
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-slate-300">Game Over!</h1>
+            <div className="text-6xl font-black text-white">{winner.name} Wins!</div>
+            <div className="text-3xl text-yellow-400 font-mono">${winner.score}</div>
+          </div>
+
+          <div className="bg-slate-900 rounded-xl p-6 space-y-4">
+             {sortedTeams.map((team, idx) => (
+                <div key={team.id} className="flex justify-between items-center border-b border-slate-800 last:border-0 pb-2 last:pb-0">
+                    <span className="font-bold text-slate-400">#{idx + 1} {team.name}</span>
+                    <span className="font-mono text-xl">${team.score}</span>
+                </div>
+             ))}
+          </div>
+
+          <button 
+            onClick={resetGame}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-lg font-bold flex items-center gap-2 mx-auto transition-colors"
+          >
+            <RotateCcw size={20} /> Play Again
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="font-sans">
+      {phase === 'setup' && renderSetup()}
+      {phase === 'board' && renderBoard()}
+      {phase === 'question' && renderQuestion()}
+      {phase === 'final' && renderFinalJeopardy()}
+      {phase === 'end' && renderWinner()}
+    </div>
+  );
+}
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
