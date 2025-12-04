@@ -897,12 +897,17 @@
 
             return (
                 <div className="font-sans antialiased selection:bg-yellow-500 selection:text-black">
-                    {phase === 'setup' && <RenderSetup />}
-                    {phase === 'editor' && <GameEditor />}
-                    {phase === 'board' && <RenderBoard />}
-                    {phase === 'question' && <RenderQuestion />}
-                    {phase === 'final' && <RenderFinalJeopardy />}
-                    {phase === 'end' && <RenderWinner />}
+                    {/* Call these as functions with () instead of <Tags /> */}
+                    {phase === 'setup' && RenderSetup()} 
+                    
+                    {/* LEAVE GameEditor AS A TAG because it has internal useState hooks */}
+                    {phase === 'editor' && <GameEditor />} 
+                    
+                    {/* Call the rest as functions to prevent re-rendering glitches */}
+                    {phase === 'board' && RenderBoard()}
+                    {phase === 'question' && RenderQuestion()}
+                    {phase === 'final' && RenderFinalJeopardy()}
+                    {phase === 'end' && RenderWinner()}
                 </div>
             );
         }
